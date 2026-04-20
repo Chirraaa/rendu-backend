@@ -56,7 +56,8 @@ builder.Services.AddCors(options =>
     {
         policy.WithOrigins(
             "http://localhost:4200",
-            "https://kanban-app-test.vercel.app"
+            "https://kanban-app-test.vercel.app",
+            "https://rendu-frontend.vercel.app"
         )
         .AllowAnyHeader()
         .AllowAnyMethod()
