@@ -96,25 +96,4 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHub<BoardHub>("/hubs/board");
 
-using (var scope = app.Services.CreateScope())
-{
-    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    if (app.Environment.IsEnvironment("Testing"))
-        context.Database.EnsureCreated();
-    if (!context.Users.Any())
-    {
-        context.Users.Add(new KanbanApp.API.Models.User
-        {   
-            Email = "admin@kanban.com",
-            LastName = "Admin",
-            FirstName = "Adam",
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword("passwordAdmin")
-
-        });
-        context.SaveChanges();
-    }
-}
-
-app.Run();
-
-public partial class Program { }
+app.Run($"http://0.0.0.0:{Environment.GetEnvironmentVariable("PORT") ?? "8080"}");
