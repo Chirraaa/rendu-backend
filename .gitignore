@@ -1,0 +1,25 @@
+# Build output
+bin/
+obj/
+
+# .NET user-specific files
+*.user
+*.suo
+*.userprefs
+*.userosscache
+*.sln.docstates
+
+# ASP.NET Core
+appsettings.Development.json
+
+# Environment / secrets
+.env
+
+# Logs
+*.log
+logs/
+
+# NuGet
+*.nupkg
+.nuget/
+packages/
