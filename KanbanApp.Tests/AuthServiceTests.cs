@@ -2,7 +2,6 @@ using KanbanApp.API.DTOs;
 using KanbanApp.API.Models;
 using KanbanApp.API.Repositories.Interfaces;
 using KanbanApp.API.Services;
-using Microsoft.AspNetCore.Http;
 using Moq;
 
 namespace KanbanApp.Tests;
@@ -23,14 +22,6 @@ public class AuthServiceTests
 
         _repoMock = new Mock<IAuthRepository>();
         _service = new AuthService(_repoMock.Object);
-    }
-
-    private static DefaultHttpContext MakeHttpContext(string? refreshTokenCookie = null)
-    {
-        var ctx = new DefaultHttpContext();
-        if (refreshTokenCookie != null)
-            ctx.Request.Headers["Cookie"] = $"refreshToken={refreshTokenCookie}";
-        return ctx;
     }
 
     // RegisterAsync
@@ -95,11 +86,9 @@ public class AuthServiceTests
     public async Task LoginAsync_ReturnsNull_WhenUserNotFound()
     {
         _repoMock.Setup(r => r.GetUserByEmailAsync(It.IsAny<string>())).ReturnsAsync((User?)null);
-        var ctx = MakeHttpContext();
 
         var result = await _service.LoginAsync(
-            new LoginRequestDto { Email = "nobody@test.com", Password = "pass" },
-            ctx.Response);
+            new LoginRequestDto { Email = "nobody@test.com", Password = "pass" });
 
         Assert.Null(result);
     }
@@ -109,11 +98,9 @@ public class AuthServiceTests
     {
         var user = new User { Email = "user@test.com", PasswordHash = BCrypt.Net.BCrypt.HashPassword("correct") };
         _repoMock.Setup(r => r.GetUserByEmailAsync("user@test.com")).ReturnsAsync(user);
-        var ctx = MakeHttpContext();
 
         var result = await _service.LoginAsync(
-            new LoginRequestDto { Email = "user@test.com", Password = "wrong" },
-            ctx.Response);
+            new LoginRequestDto { Email = "user@test.com", Password = "wrong" });
 
         Assert.Null(result);
     }
@@ -125,15 +112,14 @@ public class AuthServiceTests
         _repoMock.Setup(r => r.GetUserByEmailAsync("user@test.com")).ReturnsAsync(user);
         _repoMock.Setup(r => r.AddRefreshTokenAsync(It.IsAny<RefreshToken>())).Returns(Task.CompletedTask);
         _repoMock.Setup(r => r.SaveChangesAsync()).Returns(Task.CompletedTask);
-        var ctx = MakeHttpContext();
 
         var result = await _service.LoginAsync(
-            new LoginRequestDto { Email = "user@test.com", Password = "correct" },
-            ctx.Response);
+            new LoginRequestDto { Email = "user@test.com", Password = "correct" });
 
         Assert.NotNull(result);
         Assert.Equal("user@test.com", result.Email);
         Assert.NotEmpty(result.AccessToken);
+        Assert.NotEmpty(result.RefreshToken!);
         _repoMock.Verify(r => r.AddRefreshTokenAsync(It.IsAny<RefreshToken>()), Times.Once);
         _repoMock.Verify(r => r.SaveChangesAsync(), Times.Once);
     }
@@ -141,26 +127,23 @@ public class AuthServiceTests
     // LogoutAsync
 
     [Fact]
-    public async Task LogoutAsync_RevokesToken_WhenCookiePresent()
+    public async Task LogoutAsync_RevokesToken_WhenTokenProvided()
     {
         var token = new RefreshToken { Token = "abc", IsRevoked = false };
         _repoMock.Setup(r => r.GetRefreshTokenAsync("abc")).ReturnsAsync(token);
         _repoMock.Setup(r => r.RevokeRefreshTokenAsync(token)).Returns(Task.CompletedTask);
         _repoMock.Setup(r => r.SaveChangesAsync()).Returns(Task.CompletedTask);
-        var ctx = MakeHttpContext("abc");
 
-        await _service.LogoutAsync(ctx.Request, ctx.Response);
+        await _service.LogoutAsync("abc");
 
         _repoMock.Verify(r => r.RevokeRefreshTokenAsync(token), Times.Once);
         _repoMock.Verify(r => r.SaveChangesAsync(), Times.Once);
     }
 
     [Fact]
-    public async Task LogoutAsync_DoesNothing_WhenNoCookie()
+    public async Task LogoutAsync_DoesNothing_WhenNoToken()
     {
-        var ctx = MakeHttpContext();
-
-        await _service.LogoutAsync(ctx.Request, ctx.Response);
+        await _service.LogoutAsync(string.Empty);
 
         _repoMock.Verify(r => r.GetRefreshTokenAsync(It.IsAny<string>()), Times.Never);
     }
@@ -168,10 +151,9 @@ public class AuthServiceTests
     // RefreshAsync
 
     [Fact]
-    public async Task RefreshAsync_ReturnsNull_WhenNoCookie()
+    public async Task RefreshAsync_ReturnsNull_WhenNoToken()
     {
-        var ctx = MakeHttpContext();
-        var result = await _service.RefreshAsync(ctx.Request, ctx.Response);
+        var result = await _service.RefreshAsync(string.Empty);
         Assert.Null(result);
     }
 
@@ -180,9 +162,8 @@ public class AuthServiceTests
     {
         _repoMock.Setup(r => r.GetRefreshTokenAsync("abc"))
             .ReturnsAsync(new RefreshToken { IsRevoked = true, ExpiresAt = DateTime.UtcNow.AddDays(1) });
-        var ctx = MakeHttpContext("abc");
 
-        var result = await _service.RefreshAsync(ctx.Request, ctx.Response);
+        var result = await _service.RefreshAsync("abc");
 
         Assert.Null(result);
     }
@@ -192,9 +173,8 @@ public class AuthServiceTests
     {
         _repoMock.Setup(r => r.GetRefreshTokenAsync("abc"))
             .ReturnsAsync(new RefreshToken { IsRevoked = false, ExpiresAt = DateTime.UtcNow.AddDays(-1) });
-        var ctx = MakeHttpContext("abc");
 
-        var result = await _service.RefreshAsync(ctx.Request, ctx.Response);
+        var result = await _service.RefreshAsync("abc");
 
         Assert.Null(result);
     }
@@ -208,13 +188,13 @@ public class AuthServiceTests
         _repoMock.Setup(r => r.RevokeRefreshTokenAsync(token)).Returns(Task.CompletedTask);
         _repoMock.Setup(r => r.AddRefreshTokenAsync(It.IsAny<RefreshToken>())).Returns(Task.CompletedTask);
         _repoMock.Setup(r => r.SaveChangesAsync()).Returns(Task.CompletedTask);
-        var ctx = MakeHttpContext("abc");
 
-        var result = await _service.RefreshAsync(ctx.Request, ctx.Response);
+        var result = await _service.RefreshAsync("abc");
 
         Assert.NotNull(result);
         Assert.Equal("user@test.com", result.Email);
         Assert.NotEmpty(result.AccessToken);
+        Assert.NotEmpty(result.RefreshToken!);
         _repoMock.Verify(r => r.RevokeRefreshTokenAsync(token), Times.Once);
         _repoMock.Verify(r => r.AddRefreshTokenAsync(It.IsAny<RefreshToken>()), Times.Once);
     }

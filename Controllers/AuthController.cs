@@ -30,7 +30,7 @@ namespace KanbanApp.API.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequestDto request)
         {
-            var result = await _authService.LoginAsync(request, Response);
+            var result = await _authService.LoginAsync(request);
             if (result == null)
                 return Unauthorized(new { message = "Invalid email or password." });
 
@@ -38,17 +38,17 @@ namespace KanbanApp.API.Controllers
         }
 
         [HttpPost("refresh")]
-        public async Task<IActionResult> Refresh()
+        public async Task<IActionResult> Refresh([FromBody] RefreshRequestDto request)
         {
-            var result = await _authService.RefreshAsync(Request, Response);
+            var result = await _authService.RefreshAsync(request.RefreshToken);
             if (result == null) return Unauthorized();
             return Ok(result);
         }
 
         [HttpPost("logout")]
-        public async Task<IActionResult> Logout()
+        public async Task<IActionResult> Logout([FromBody] LogoutRequestDto request)
         {
-            await _authService.LogoutAsync(Request, Response);
+            await _authService.LogoutAsync(request.RefreshToken);
             return Ok(new { message = "Logged out successfully." });
         }
     }

@@ -31,7 +31,7 @@ namespace KanbanApp.API.Services
             _rememberMeExpiryDays = int.Parse(Environment.GetEnvironmentVariable("REMEMBER_ME_EXPIRY_DAYS") ?? "30");
         }
 
-        public async Task<AuthResponseDto?> LoginAsync(LoginRequestDto request, HttpResponse response)
+        public async Task<AuthResponseDto?> LoginAsync(LoginRequestDto request)
         {
             var email = request.Email.Trim().ToLowerInvariant();
             var user = await _authRepository.GetUserByEmailAsync(email);
@@ -53,21 +53,19 @@ namespace KanbanApp.API.Services
             await _authRepository.AddRefreshTokenAsync(refreshTokenEntity);
             await _authRepository.SaveChangesAsync();
 
-            SetRefreshTokenCookie(response, refreshToken, expiryDays);
-
             return new AuthResponseDto
             {
                 AccessToken = accessToken,
+                RefreshToken = refreshToken,
                 Email = user.Email,
                 FirstName = user.FirstName,
                 LastName = user.LastName,
             };
         }
 
-        public async Task<AuthResponseDto?> RefreshAsync(HttpRequest request, HttpResponse response)
+        public async Task<AuthResponseDto?> RefreshAsync(string refreshToken)
         {
-            var refreshToken = request.Cookies["refreshToken"];
-            if (refreshToken == null)
+            if (string.IsNullOrEmpty(refreshToken))
                 return null;
 
             var tokenEntity = await _authRepository.GetRefreshTokenAsync(refreshToken);
@@ -91,23 +89,21 @@ namespace KanbanApp.API.Services
             await _authRepository.AddRefreshTokenAsync(newRefreshTokenEntity);
             await _authRepository.SaveChangesAsync();
 
-            SetRefreshTokenCookie(response, newRefreshToken, remainingDays);
-
             var accessToken = GenerateAccessToken(user);
 
             return new AuthResponseDto
             {
                 AccessToken = accessToken,
+                RefreshToken = newRefreshToken,
                 Email = user.Email,
                 FirstName = user.FirstName,
                 LastName = user.LastName,
             };
         }
 
-        public async Task LogoutAsync(HttpRequest request, HttpResponse response)
+        public async Task LogoutAsync(string refreshToken)
         {
-            var refreshToken = request.Cookies["refreshToken"];
-            if (refreshToken != null)
+            if (!string.IsNullOrEmpty(refreshToken))
             {
                 var tokenEntity = await _authRepository.GetRefreshTokenAsync(refreshToken);
                 if (tokenEntity != null)
@@ -116,8 +112,6 @@ namespace KanbanApp.API.Services
                     await _authRepository.SaveChangesAsync();
                 }
             }
-
-            response.Cookies.Delete("refreshToken");
         }
 
         public async Task<AuthResponseDto?> RegisterAsync(RegisterRequestDto request)
@@ -168,16 +162,5 @@ namespace KanbanApp.API.Services
         }
 
         private static string GenerateRefreshToken() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
-
-        private static void SetRefreshTokenCookie(HttpResponse response, string token, int expiryDays)
-        {
-            response.Cookies.Append("refreshToken", token, new CookieOptions
-            {
-               HttpOnly = true,
-               Secure = true,
-               SameSite = SameSiteMode.None,
-               Expires = DateTime.UtcNow.AddDays(expiryDays) 
-            });
-        }
     }
 }

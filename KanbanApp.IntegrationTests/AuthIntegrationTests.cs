@@ -77,9 +77,9 @@ public class AuthIntegrationTests : IntegrationTestBase, IClassFixture<KanbanWeb
     }
 
     [Fact]
-    public async Task Refresh_ReturnsUnauthorized_WithoutCookie()
+    public async Task Refresh_ReturnsUnauthorized_WithoutToken()
     {
-        var response = await _client.PostAsync("/api/auth/refresh", null);
+        var response = await _client.PostAsJsonAsync("/api/auth/refresh", new { refreshToken = "" });
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -87,7 +87,7 @@ public class AuthIntegrationTests : IntegrationTestBase, IClassFixture<KanbanWeb
     [Fact]
     public async Task Logout_ReturnsOk()
     {
-        var response = await _client.PostAsync("/api/auth/logout", null);
+        var response = await _client.PostAsJsonAsync("/api/auth/logout", new { refreshToken = "" });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
